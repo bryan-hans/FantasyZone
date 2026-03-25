@@ -1,18 +1,31 @@
 import os
-from contextlib import asynccontextmanager
+import sys
+import traceback
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+print(f"[boot] Python {sys.version}")
+print(f"[boot] CWD: {os.getcwd()}")
 
-from app.database import connect_db, close_db, get_db
-from app.services.csv_parser import parse_csv
-from app.routers import settings, projections, players, team
-from app.nhl_client import nhl_client
+try:
+    from contextlib import asynccontextmanager
+    from fastapi import FastAPI
+    from fastapi.middleware.cors import CORSMiddleware
+    print("[boot] FastAPI imported OK")
+
+    from app.database import connect_db, close_db, get_db
+    from app.services.csv_parser import parse_csv
+    from app.routers import settings, projections, players, team
+    from app.nhl_client import nhl_client
+    print("[boot] All modules imported OK")
+except Exception as e:
+    print(f"[boot] IMPORT ERROR: {e}")
+    traceback.print_exc()
+    sys.exit(1)
 
 CSV_SEED_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
     "DtZ 2025-2026 NHL Fantasy Projections - Skater Projections.csv",
 )
+print(f"[boot] CSV path: {CSV_SEED_PATH} (exists: {os.path.exists(CSV_SEED_PATH)})")
 
 
 async def seed_csv_projections():
@@ -28,7 +41,7 @@ async def seed_csv_projections():
             return
 
         if not os.path.exists(CSV_SEED_PATH):
-            print(f"[seed] CSV not found at {CSV_SEED_PATH}, skipping")
+            print(f"[seed] CSV not found, skipping seed")
             return
 
         with open(CSV_SEED_PATH, "r", encoding="utf-8-sig") as f:
@@ -45,15 +58,18 @@ async def seed_csv_projections():
             for p in player_data
         ]
         result = await db.custom_projections.bulk_write(ops)
-        print(f"[seed] Loaded {result.upserted_count + result.modified_count} player projections ({len(player_data)} in CSV)")
+        print(f"[seed] Loaded {result.upserted_count + result.modified_count} projections")
     except Exception as e:
-        print(f"[seed] Error during seed: {e}")
+        print(f"[seed] Error: {e}")
+        traceback.print_exc()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    print("[lifespan] Starting up...")
     await connect_db()
     await seed_csv_projections()
+    print("[lifespan] Startup complete")
     yield
     await nhl_client.close()
     await close_db()
@@ -61,7 +77,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Fantasy Zone - NHL Stats",
-    description="NHL fantasy hockey stats and projections",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -73,7 +88,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 app.include_router(settings.router)
 app.include_router(projections.router)
