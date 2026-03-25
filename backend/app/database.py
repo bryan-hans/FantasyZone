@@ -11,7 +11,7 @@ async def connect_db():
     global client, db
     client = AsyncIOMotorClient(
         settings.mongodb_url,
-        serverSelectionTimeoutMS=10000,
+        serverSelectionTimeoutMS=15000,
         tls=True,
         tlsCAFile=certifi.where(),
     )
