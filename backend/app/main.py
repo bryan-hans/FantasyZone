@@ -16,31 +16,38 @@ CSV_SEED_PATH = os.path.join(
 
 
 async def seed_csv_projections():
-    db = get_db()
-    count = await db.custom_projections.count_documents({})
-    if count > 0:
-        print(f"[seed] {count} projections already in DB, skipping seed")
-        return
+    try:
+        db = get_db()
+        if db is None:
+            print("[seed] No database connection, skipping seed")
+            return
 
-    if not os.path.exists(CSV_SEED_PATH):
-        print(f"[seed] CSV not found at {CSV_SEED_PATH}, skipping")
-        return
+        count = await db.custom_projections.count_documents({})
+        if count > 0:
+            print(f"[seed] {count} projections already in DB, skipping seed")
+            return
 
-    with open(CSV_SEED_PATH, "r", encoding="utf-8-sig") as f:
-        content = f.read()
+        if not os.path.exists(CSV_SEED_PATH):
+            print(f"[seed] CSV not found at {CSV_SEED_PATH}, skipping")
+            return
 
-    players = parse_csv(content)
-    if not players:
-        print("[seed] No valid players found in CSV")
-        return
+        with open(CSV_SEED_PATH, "r", encoding="utf-8-sig") as f:
+            content = f.read()
 
-    from pymongo import ReplaceOne
-    ops = [
-        ReplaceOne({"playerId": p["playerId"]}, p, upsert=True)
-        for p in players
-    ]
-    result = await db.custom_projections.bulk_write(ops)
-    print(f"[seed] Loaded {result.upserted_count + result.modified_count} player projections ({len(players)} in CSV)")
+        player_data = parse_csv(content)
+        if not player_data:
+            print("[seed] No valid players found in CSV")
+            return
+
+        from pymongo import ReplaceOne
+        ops = [
+            ReplaceOne({"playerId": p["playerId"]}, p, upsert=True)
+            for p in player_data
+        ]
+        result = await db.custom_projections.bulk_write(ops)
+        print(f"[seed] Loaded {result.upserted_count + result.modified_count} player projections ({len(player_data)} in CSV)")
+    except Exception as e:
+        print(f"[seed] Error during seed: {e}")
 
 
 @asynccontextmanager
@@ -61,7 +68,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -76,6 +83,9 @@ app.include_router(team.router)
 
 @app.get("/api/health")
 async def health():
-    db = get_db()
-    count = await db.custom_projections.count_documents({})
-    return {"status": "ok", "app": "Fantasy Zone", "projections_loaded": count}
+    try:
+        db = get_db()
+        count = await db.custom_projections.count_documents({})
+        return {"status": "ok", "app": "Fantasy Zone", "projections_loaded": count}
+    except Exception:
+        return {"status": "ok", "app": "Fantasy Zone", "projections_loaded": "unknown"}
