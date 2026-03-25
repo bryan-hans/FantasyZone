@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { BarChart3, Users, Settings, Search, Home, UserCheck } from 'lucide-react';
+import { BarChart3, Users, Settings, Home, UserCheck } from 'lucide-react';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: Home },
