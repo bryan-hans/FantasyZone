@@ -1,3 +1,4 @@
+import certifi
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 
 from app.config import settings
@@ -10,7 +11,9 @@ async def connect_db():
     global client, db
     client = AsyncIOMotorClient(
         settings.mongodb_url,
-        serverSelectionTimeoutMS=5000,
+        serverSelectionTimeoutMS=10000,
+        tls=True,
+        tlsCAFile=certifi.where(),
     )
     db = client[settings.database_name]
 
